@@ -35,10 +35,13 @@ const APP_ROOT = path.resolve(__dirname, '..')
 const REPO_ROOT = path.resolve(APP_ROOT, '..', '..')
 const STAGE_ROOT = path.join(APP_ROOT, 'build', 'native-deps')
 
-// The target arch may be overridden by electron-builder via npm_config_arch
-// (e.g. `npm run dist -- --arm64`); fall back to the build host's arch.
+// The target arch/platform may be overridden by electron-builder via
+// npm_config_arch / npm_config_platform (e.g. `npm run dist -- --arm64`);
+// fall back to the build host's values.  HERMES_TARGET_PLATFORM provides an
+// additional override for cross-compilation (e.g. building macOS DMG from
+// Windows).
 const TARGET_ARCH = process.env.npm_config_arch || process.arch
-const TARGET_PLATFORM = process.platform
+const TARGET_PLATFORM = process.env.HERMES_TARGET_PLATFORM || process.env.npm_config_platform || process.platform
 
 // Modules to stage. The "from" path is the hoisted location in the workspace
 // root; "to" is the layout we want inside build/native-deps/.  The "include"
@@ -139,8 +142,10 @@ function stageOne(spec) {
     // CreateProcess at runtime, so they must remain executable in the
     // staged tree.  fs.copyFileSync preserves source mode on POSIX, but we
     // re-assert +x defensively for the darwin spawn-helper (no extension
-    // means a stripped mode would be silently broken at runtime).
-    if (path.basename(rel) === 'spawn-helper' && process.platform !== 'win32') {
+    // means a stripped mode would be silently broken at runtime).  Check
+    // TARGET_PLATFORM (not process.platform) so cross-compilation (e.g.
+    // building a macOS DMG from Windows) still sets the executable bit.
+    if (path.basename(rel) === 'spawn-helper' && TARGET_PLATFORM !== 'win32') {
       try { fs.chmodSync(dest, 0o755) } catch { /* best-effort */ }
     }
     copied += 1
